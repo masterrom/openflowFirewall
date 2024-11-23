@@ -403,12 +403,7 @@ class Firewall (EventMixin):
             if ip_packet.srcip == None or ip_packet.dstip == None:
                 return True
             
-            if packet.src not in self.patternTable:
-                self.patternTable [packet.src] = [ip_packet.srcip, ip_packet.dstip, event.port]
-                log.debug("----- Pattern: %s:%s -> %s:%s" % (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
-                log.debug('----- This is a new Pattern! Adding the pattern to memory')
-                return True
-            else:
+            if packet.src in self.patternTable:
                 # Pattern with the MAC entry exits, Possible spoofing
 
                 if self.patternTable.get(packet.src) == [ip_packet.srcip, ip_packet.dstip, event.port]:
@@ -429,16 +424,40 @@ class Firewall (EventMixin):
                         dstip = str(ip_packet.dstip)
                         self.writeToFirewall (srcmac, 'any', dstip)
                         
-                    # Second: flow has been seen on a different port. This is likely a routing or spanning tree problem,
-                    # more hardly an attack. Without better knowledge of the topology, we need to allow the flow for this lab.
-                    # if oldPort != event.port:
-                    #     log.debug("*** Port has changed for the same MAC address: new port %s, MAC %s: it was IP %s on port %s], Requested: %s ***" %
-                    #         (str(oldPort), str(packet.src), str(ip_packet.srcip), str(event.port), str(ip_packet.dstip)))
-                    #     return True
-
-                    # log.debug("You should never get here. If you do, I did something wrong!")
-
                     return True
+            else:
+                self.patternTable [packet.src] = [ip_packet.srcip, ip_packet.dstip, event.port]
+                log.debug("----- Pattern: %s:%s -> %s:%s" % (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
+                log.debug('----- This is a new Pattern! Adding the pattern to memory')
+                return True
+
+            # if packet.src not in self.patternTable:
+            #     self.patternTable [packet.src] = [ip_packet.srcip, ip_packet.dstip, event.port]
+            #     log.debug("----- Pattern: %s:%s -> %s:%s" % (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
+            #     log.debug('----- This is a new Pattern! Adding the pattern to memory')
+            #     return True
+            # else:
+            #     # Pattern with the MAC entry exits, Possible spoofing
+
+            #     if self.patternTable.get(packet.src) == [ip_packet.srcip, ip_packet.dstip, event.port]:
+            #         # Same pattern was observed before, we are all good
+            #         log.debug("----- Port Security entry already present: %s, %s, %s, %s" %
+            #             (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
+            #         return True
+            #     else:
+            #         # Port Security Check
+            #         oldIp = self.patternTable.get(packet.src)[0]
+            #         # oldPort = self.patternTable.get(packet.src)[1]
+            #         # Different srcIP, attack attempt confirmed.
+            #         if oldIp != ip_packet.srcip:
+            #             log.debug("----- Spoofing attempt detected. srcMac= %s, packetSrcIP= %s, oldSrcIP= %s", str(packet.src), str(ip_packet.srcip), str(oldIp))
+            #             # Block the MAC address
+            #             srcmac = str(packet.src)
+            #             srcip = None
+            #             dstip = str(ip_packet.dstip)
+            #             self.writeToFirewall (srcmac, 'any', dstip)
+                        
+            #         return True
 
         if packet.type == packet.ARP_TYPE:
             log.debug("ARP security - for future extension")
