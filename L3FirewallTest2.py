@@ -162,9 +162,9 @@ class Firewall (EventMixin):
         log.debug ("Execute replyToIP")
         srcmac = str(match.dl_src)
         dstmac = str(match.dl_src)
-        sport = str(match.tp_src)
-        dport = str(match.tp_dst)
-        nwproto = str(match.nw_proto)
+        # sport = str(match.tp_src)
+        # dport = str(match.tp_dst)
+        # nwproto = str(match.nw_proto)
 
         with open(l3config) as csvfile:
             log.debug("Reading log file !")
@@ -359,7 +359,7 @@ class Firewall (EventMixin):
 
     def writeToFirewall(self, srcMac='any', srcIP='any', dstIP='any'):
         
-        log.debug("Adding new Firewall Rule")
+        log.debug("----- Adding new Firewall Rule")
 
         # Check if the rule is not already saved
         # If not, add to firewall rules in memory and then in the CSV file
@@ -372,8 +372,8 @@ class Firewall (EventMixin):
                 break
 
         if addRule: 
-            log.debug("....Saving: srcIP=%s dstIP=%s srcMAC=%s" % (str(srcIP), str(dstIP), str(srcMac)))
-            log.debug('Storeing new rule into memory...')
+            log.debug("----- Saving: srcIP=%s dstIP=%s srcMAC=%s" % (str(srcIP), str(dstIP), str(srcMac)))
+            log.debug('----- Storeing new rule into memory...')
 
             self.currentlyBlocked [str(srcMac)] = [str(srcIP), str(dstIP)]
             with open(l3config, 'a') as csvfile:
@@ -401,24 +401,26 @@ class Firewall (EventMixin):
         if packet.type == packet.IP_TYPE:
             ip_packet = packet.payload
             if ip_packet.srcip == None or ip_packet.dstip == None:
-                log.debug("Packet meaningless for Port Security (likely IPv6)")
                 return True
             
             if packet.src not in self.patternTable:
                 self.patternTable [packet.src] = [ip_packet.srcip, ip_packet.dstip, event.port]
-                log.debug("%s:%s -> %s:%s" % (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
-                log.debug('This is a new Pattern! Adding the pattern to memory')
+                log.debug("----- Pattern: %s:%s -> %s:%s" % (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
+                log.debug('----- This is a new Pattern! Adding the pattern to memory')
                 return True
             else:
+                # Pattern with the MAC entry exits, Possible spoofing
+
                 if self.patternTable.get(packet.src) == [ip_packet.srcip, ip_packet.dstip, event.port]:
-                    log.debug("Port Security entry already present: %s, %s, %s, %s" %
+                    # Same pattern was observed before, we are all good
+                    log.debug("----- Port Security entry already present: %s, %s, %s, %s" %
                         (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
                     return True
                 else:
                     # Port Security Check
                     oldIp = self.patternTable.get(packet.src)[0]
-                    oldPort = self.patternTable.get(packet.src)[1]
-                    
+                    # oldPort = self.patternTable.get(packet.src)[1]
+                    # Different srcIP, attack attempt confirmed.
                     if oldIp != ip_packet.srcip:
                         log.debug("----- Spoofing attempt detected. srcMac= %s, packetSrcIP= %s, oldSrcIP= %s", str(packet.src), str(ip_packet.srcip), str(oldIp))
                         # Block the MAC address
@@ -429,12 +431,12 @@ class Firewall (EventMixin):
                         
                     # Second: flow has been seen on a different port. This is likely a routing or spanning tree problem,
                     # more hardly an attack. Without better knowledge of the topology, we need to allow the flow for this lab.
-                    if oldPort != event.port:
-                        log.debug("*** Port has changed for the same MAC address: new port %s, MAC %s: it was IP %s on port %s], Requested: %s ***" %
-                            (str(oldPort), str(packet.src), str(ip_packet.srcip), str(event.port), str(ip_packet.dstip)))
-                        return True
+                    # if oldPort != event.port:
+                    #     log.debug("*** Port has changed for the same MAC address: new port %s, MAC %s: it was IP %s on port %s], Requested: %s ***" %
+                    #         (str(oldPort), str(packet.src), str(ip_packet.srcip), str(event.port), str(ip_packet.dstip)))
+                    #     return True
 
-                    log.debug("You should never get here. If you do, I did something wrong!")
+                    # log.debug("You should never get here. If you do, I did something wrong!")
 
                     return True
 
@@ -443,11 +445,6 @@ class Firewall (EventMixin):
             return True
 
         srcmac = srcmac
-        dstmac = None
-        sport = None
-        dport = None
-        nwproto = str(match.nw_proto)
-
         log.debug("portSecurity - installFlow")
         self.installFlow(event, 32768, srcmac, None, srcip, dstip, None, None, nw_proto)
 
