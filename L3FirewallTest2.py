@@ -357,6 +357,40 @@ class Firewall (EventMixin):
 
         return False
 
+    def writeToFirewall(self, srcMac='any', srcIP='any', dstIP='any'):
+        
+        log.debug("Adding new Firewall Rule")
+
+        # Check if the rule is not already saved
+        # If not, add to firewall rules in memory and then in the CSV file
+
+        addRule = True
+        for attackerMac, pattern in self.currentlyBlocked.items():
+            if attackerMac == str(srcMac) and pattern[0] == str(srcIP) and pattern[1] == str(dstIP):
+                log.debug('Rule already exists...')
+                addRule = False
+                break
+
+        if addRule: 
+            log.debug("....Saving: srcIP=%s dstIP=%s srcMAC=%s" % (str(srcIP), str(dstIP), str(srcMac)))
+            log.debug('Storeing new rule into memory...')
+
+            self.currentlyBlocked [str(srcMac)] = [str(srcIP), str(dstIP)]
+            with open(l3config, 'a') as csvfile:
+                log.debug("Writing log file !")
+
+                csvwriter = csv.DictWriter(csvfile, fieldnames=[
+                    'priority','src_mac','dst_mac','src_ip','dst_ip','src_port','dst_port','nw_proto',])
+                csvwriter.writerow({
+                    'priority': 32768,
+                    'src_mac' : str(srcMac),
+                    'dst_mac' : 'any',
+                    'src_ip'  : str(srcIP),
+                    'dst_ip'  : str(dstIP),
+                    'src_port': 'any',
+                    'dst_port': 'any',
+                    'nw_proto': 'any',
+                    })
 
     def portSecurity(self, packet, match=None, event=None):
 
@@ -391,7 +425,7 @@ class Firewall (EventMixin):
                         srcmac = str(packet.src)
                         srcip = None
                         dstip = str(ip_packet.dstip)
-                        self.addRuleToCSV (srcmac, 'any', dstip)
+                        self.writeToFirewall (srcmac, 'any', dstip)
                         
                     # Second: flow has been seen on a different port. This is likely a routing or spanning tree problem,
                     # more hardly an attack. Without better knowledge of the topology, we need to allow the flow for this lab.
