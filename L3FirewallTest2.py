@@ -210,37 +210,37 @@ class Firewall (EventMixin):
     def writeToFirewall(self, srcMac='any', srcIP='any', dstIP='any'):
         
         log.debug("----- Adding new Firewall Rule")
-
-        # Check if the rule is not already saved
-        # If not, add to firewall rules in memory and then in the CSV file
-
-        # addRule = True
-        # for attackerMac, pattern in self.currentlyBlocked.items():
-        #     if attackerMac == str(srcMac) and pattern[0] == str(srcIP) and pattern[1] == str(dstIP):
-        #         log.debug('Rule already exists...')
-        #         addRule = False
-        #         break
-
-        # if addRule: 
         log.debug("----- Saving: srcIP=%s dstIP=%s srcMAC=%s" % (str(srcIP), str(dstIP), str(srcMac)))
         log.debug('----- Storeing new rule into memory...')
 
-        self.currentlyBlocked [str(srcMac)] = [str(srcIP), str(dstIP)]
-        with open(l3config, 'a') as csvfile:
+        self.currentlyBlocked[str(srcMac)] = [str(srcIP), str(dstIP)]
+        with open(l2config, 'a') as csvfile:
             log.debug("Writing log file !")
 
             csvwriter = csv.DictWriter(csvfile, fieldnames=[
-                'priority','src_mac','dst_mac','src_ip','dst_ip','src_port','dst_port','nw_proto',])
+                'id', 'mac_0', 'mac_1',])
             csvwriter.writerow({
-                'priority': 32768,
-                'src_mac' : str(srcMac),
-                'dst_mac' : 'any',
-                'src_ip'  : str(srcIP),
-                'dst_ip'  : str(dstIP),
-                'src_port': 'any',
-                'dst_port': 'any',
-                'nw_proto': 'any',
+                'id': 1,
+                'mac_0' : str(srcMac),
+                'mac_1' : 'any',
                 })
+
+
+        # with open(l3config, 'a') as csvfile:
+        #     log.debug("Writing log file !")
+
+        #     csvwriter = csv.DictWriter(csvfile, fieldnames=[
+        #         'priority','src_mac','dst_mac','src_ip','dst_ip','src_port','dst_port','nw_proto',])
+        #     csvwriter.writerow({
+        #         'priority': 32768,
+        #         'src_mac' : str(srcMac),
+        #         'dst_mac' : 'any',
+        #         'src_ip'  : str(srcIP),
+        #         'dst_ip'  : str(dstIP),
+        #         'src_port': 'any',
+        #         'dst_port': 'any',
+        #         'nw_proto': 'any',
+        #         })
 
     def portSecurity(self, packet, match=None, event=None):
 
@@ -249,29 +249,29 @@ class Firewall (EventMixin):
         dstip = None
 
         if packet.type == packet.IP_TYPE:
-            ip_packet = packet.payload
-            if ip_packet.srcip == None or ip_packet.dstip == None:
+            packetPayload = packet.payload
+            if packetPayload.srcip == None or packetPayload.dstip == None:
                 return True
             
             if packet.src in self.patternTable:
                 # Pattern with the MAC entry exits, Possible spoofing
-
-                if self.patternTable.get(packet.src) == [ip_packet.srcip, ip_packet.dstip, event.port]:
+                log.debug('Destination Mac Address')
+                log.debug(str(packetPayload.dst))
+                if self.patternTable.get(packet.src) == [packetPayload.srcip, packetPayload.dstip, event.port]:
                     # Same pattern was observed before, we are all good
                     log.debug("----- Port Security entry already present: %s, %s, %s, %s" %
-                        (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
+                        (str(packet.src), str(packetPayload.srcip), str(packetPayload.dstip), str(event.port)))
                     return True
                 else:
                     # Port Security Check
                     oldIp = self.patternTable.get(packet.src)[0]
-                    # oldPort = self.patternTable.get(packet.src)[1]
                     # Different srcIP, attack attempt confirmed.
-                    if oldIp != ip_packet.srcip:
-                        log.debug("----- Spoofing attempt detected. srcMac= %s, packetSrcIP= %s, oldSrcIP= %s", str(packet.src), str(ip_packet.srcip), str(oldIp))
+                    if oldIp != packetPayload.srcip:
+                        log.debug("----- Spoofing attempt detected. srcMac= %s, packetSrcIP= %s, oldSrcIP= %s", str(packet.src), str(packetPayload.srcip), str(oldIp))
                         # Block the MAC address
                         srcmac = str(packet.src)
                         srcip = None
-                        dstip = str(ip_packet.dstip)
+                        dstip = str(packetPayload.dstip)
 
                         rulePreExists = True
                         for attackerMac, pattern in self.currentlyBlocked.items():
@@ -281,42 +281,14 @@ class Firewall (EventMixin):
                                 break
                         
                         if rulePreExists:
-                            self.writeToFirewall (srcmac, 'any', dstip)
+                            self.writeToFirewall(srcmac, 'any', dstip)
                         
                     return True
             else:
-                self.patternTable [packet.src] = [ip_packet.srcip, ip_packet.dstip, event.port]
-                log.debug("----- Pattern: %s:%s -> %s:%s" % (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
+                self.patternTable [packet.src] = [packetPayload.srcip, packetPayload.dstip, event.port]
+                log.debug("----- Pattern: %s:%s -> %s:%s" % (str(packet.src), str(packetPayload.srcip), str(packetPayload.dstip), str(event.port)))
                 log.debug('----- This is a new Pattern! Adding the pattern to memory')
                 return True
-
-            # if packet.src not in self.patternTable:
-            #     self.patternTable [packet.src] = [ip_packet.srcip, ip_packet.dstip, event.port]
-            #     log.debug("----- Pattern: %s:%s -> %s:%s" % (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
-            #     log.debug('----- This is a new Pattern! Adding the pattern to memory')
-            #     return True
-            # else:
-            #     # Pattern with the MAC entry exits, Possible spoofing
-
-            #     if self.patternTable.get(packet.src) == [ip_packet.srcip, ip_packet.dstip, event.port]:
-            #         # Same pattern was observed before, we are all good
-            #         log.debug("----- Port Security entry already present: %s, %s, %s, %s" %
-            #             (str(packet.src), str(ip_packet.srcip), str(ip_packet.dstip), str(event.port)))
-            #         return True
-            #     else:
-            #         # Port Security Check
-            #         oldIp = self.patternTable.get(packet.src)[0]
-            #         # oldPort = self.patternTable.get(packet.src)[1]
-            #         # Different srcIP, attack attempt confirmed.
-            #         if oldIp != ip_packet.srcip:
-            #             log.debug("----- Spoofing attempt detected. srcMac= %s, packetSrcIP= %s, oldSrcIP= %s", str(packet.src), str(ip_packet.srcip), str(oldIp))
-            #             # Block the MAC address
-            #             srcmac = str(packet.src)
-            #             srcip = None
-            #             dstip = str(ip_packet.dstip)
-            #             self.writeToFirewall (srcmac, 'any', dstip)
-                        
-            #         return True
 
         if packet.type == packet.ARP_TYPE:
             log.debug("ARP security - for future extension")
