@@ -253,10 +253,10 @@ class Firewall (EventMixin):
             if packetPayload.srcip == None or packetPayload.dstip == None:
                 return True
             
+            log.debug('Destination Mac Address')
+            log.debug(str(packetPayload))
             if packet.src in self.patternTable:
                 # Pattern with the MAC entry exits, Possible spoofing
-                log.debug('Destination Mac Address')
-                log.debug(str(packetPayload.dst))
                 if self.patternTable.get(packet.src) == [packetPayload.srcip, packetPayload.dstip, event.port]:
                     # Same pattern was observed before, we are all good
                     log.debug("----- Port Security entry already present: %s, %s, %s, %s" %
